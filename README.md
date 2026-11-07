@@ -79,43 +79,6 @@ The curriculum is engineered to build deep intuition for financial correctness, 
 
 ---
 
-## 📌 Module Summaries & Completed Modules
-
-### Question 3: Design an Idempotency Framework
-
-#### Core Theory & Mechanics
-Prevents duplicate charges caused by network ambiguity, retries, and dropped responses by establishing mathematical idempotency ($f(f(x)) = f(x)$).
-
-```
-[ Client ] ---( 1. POST /v1/payments Header: Idempotency-Key )---> [ Gateway ]
-                                                                       │
-┌──────────────────────────────────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────┐
-│                                                       IDEMPOTENCY STATE MACHINE                                                             │
-├───────────────────────────────────────────────────┬─────────────────────────────────────────────────┬───────────────────────────────────────┤
-│ 1. New Request Key                                │ 2. In-Flight Duplicate Key                      │ 3. Completed Key                      │
-│ -> Create lock (IN_PROGRESS)                      │ -> Reject with HTTP 409 Conflict                │ -> Replay cached HTTP response        │
-│ -> Store SHA-256 Request Hash                     │ -> Prevent concurrent duplicate execution       │ -> Zero downstream execution          │
-└───────────────────────────────────────────────────┴─────────────────────────────────────────────────┴───────────────────────────────────────┘
-```
-
-#### Storage Schema (PostgreSQL Durability Layer)
-```sql
-CREATE TABLE idempotency_keys (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id VARCHAR(64) NOT NULL,
-    idempotency_key VARCHAR(255) NOT NULL,
-    request_path VARCHAR(255) NOT NULL,
-    request_hash CHAR(64) NOT NULL,
-    status VARCHAR(20) NOT NULL CHECK (status IN ('IN_PROGRESS', 'COMPLETED', 'FAILED')),
-    response_code INT NULL,
-    response_body JSONB NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    CONSTRAINT uk_user_key UNIQUE (user_id, idempotency_key)
-);
-```
-
 #### Code Implementation
 The logic handles request hashing, atomic key locking (SETNX paradigm), payload mismatch detection (HTTP 400), race condition handling (HTTP 409), and cached response replay.
 
